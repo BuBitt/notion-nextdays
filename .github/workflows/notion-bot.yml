@@ -1,0 +1,97 @@
+name: Notion to Telegram Bot
+
+on:
+  schedule:
+    - cron: '10 10 * * *'  # Executa às 10h UTC (7h horário de Brasília)
+  workflow_dispatch:       # Permite rodar manualmente
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    env:
+      TZ: America/Sao_Paulo
+
+    steps:
+      - name: Clonar o repositório
+        uses: actions/checkout@v3
+
+      - name: Configurar Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Restaurar cache das dependências
+        id: cache-dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            venv
+            ~/.cache/pip  # Opcional: cache do pip para downloads
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Instalar dependências
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+          pip install -r requirements.txt
+
+      - name: Restaurar cache de página
+        id: cache-pages
+        uses: actions/cache@v3
+        with:
+          path: caches/page_cache.json
+          key: ${{ runner.os }}-page-cache-${{ hashFiles('caches/page_cache.json') }}
+          restore-keys: |
+            ${{ runner.os }}-page-cache-
+
+      - name: Restaurar cache de matéria
+        id: cache-materias
+        uses: actions/cache@v3
+        with:
+          path: caches/materia_cache.json
+          key: ${{ runner.os }}-materia-cache-${{ hashFiles('caches/materia_cache.json') }}
+          restore-keys: |
+            ${{ runner.os }}-materia-cache-
+
+      - name: Restaurar cache de última mensagem
+        id: cache-last-message
+        uses: actions/cache@v3
+        with:
+          path: caches/last_message.json
+          key: ${{ runner.os }}-last-message-${{ hashFiles('caches/last_message.json') }}
+          restore-keys: |
+            ${{ runner.os }}-last-message-
+
+      - name: Executar o bot
+        run: |
+          source venv/bin/activate
+          python bot.py
+        env:
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_CHAT_ID_WPP: ${{ secrets.TELEGRAM_CHAT_ID_WPP }}
+
+      - name: Salvar cache de página
+        if: success()
+        uses: actions/cache@v3
+        with:
+          path: caches/page_cache.json
+          key: ${{ runner.os }}-page-cache-${{ hashFiles('caches/page_cache.json') }}
+
+      - name: Salvar cache de matéria
+        if: success()
+        uses: actions/cache@v3
+        with:
+          path: caches/materia_cache.json
+          key: ${{ runner.os }}-materia-cache-${{ hashFiles('caches/materia_cache.json') }}
+
+      - name: Salvar cache de última mensagem
+        if: success()
+        uses: actions/cache@v3
+        with:
+          path: caches/last_message.json
+          key: ${{ runner.os }}-last-message-${{ hashFiles('caches/last_message.json') }}
