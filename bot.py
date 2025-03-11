@@ -337,9 +337,9 @@ def gerar_mensagem_tarefa(tarefa):
     mensagem = (
         f"*{tipo} \\- {materia}*\n"
         f"Dias Restantes: *{dias_texto}*\n"
-        f"Entrega: `{data_formatada}`\n"
-        f"Tópicos:\n{topicos_formatados}\n"
-        f"Descrição: _{descricao}_"
+        f"Entrega: `{data_formatada}`\n\n"  # Quebra de linha após Entrega
+        f"Tópicos:\n{topicos_formatados}\n\n"  # Quebra de linha após Tópicos
+        f"Descrição:\n_{descricao}_"  # Quebra de linha entre "Descrição:" e o conteúdo
     )
     return mensagem
 
