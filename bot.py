@@ -5,7 +5,7 @@ import time
 import glob
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 from rich.console import Console
 from colorlog import ColoredFormatter
@@ -18,7 +18,6 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 logs_dir = os.path.join(current_dir, "logs")
 caches_dir = os.path.join(current_dir, "caches")
 
-# Criar os diretórios antes de configurar o logger
 os.makedirs(logs_dir, exist_ok=True)
 os.makedirs(caches_dir, exist_ok=True)
 
@@ -64,18 +63,16 @@ TELEGRAM_CHAT_ID_WPP = os.getenv("TELEGRAM_CHAT_ID_WPP")
 # Cliente Notion assíncrono
 notion = AsyncClient(auth=NOTION_API_KEY)
 
-
 # Funções utilitárias de cache
 def check_and_update_cache(file_path, cache_name, max_age_days=1):
     if os.path.exists(file_path):
         mod_time = datetime.fromtimestamp(os.path.getmtime(file_path))
-        if (datetime.now() - mod_time).days > max_age_days:
+        if (datetime.now(timezone.utc) - mod_time).days > max_age_days:
             logger.info(
                 f"Cache {cache_name} desatualizado (>{max_age_days} dia). Limpando."
             )
             return {}
     return load_cache(file_path, cache_name)
-
 
 def load_cache(file_path, cache_name):
     if os.path.exists(file_path):
@@ -91,7 +88,6 @@ def load_cache(file_path, cache_name):
             return {}
     return {}
 
-
 def save_cache(cache, file_path, cache_name):
     try:
         with open(file_path, "w") as f:
@@ -100,8 +96,6 @@ def save_cache(cache, file_path, cache_name):
     except Exception as e:
         logger.error(f"Erro ao salvar cache {cache_name} em {file_path}: {e}")
 
-
-# Função para limpar logs antigos
 def clean_old_logs(max_age_days=7):
     log_files = glob.glob("logs/notion_sync_*.log")
     current_time = time.time()
@@ -114,7 +108,6 @@ def clean_old_logs(max_age_days=7):
             except Exception as e:
                 logger.error(f"Erro ao remover log {log_file}: {e}")
 
-
 # Funções de interação com a API do Notion
 async def check_notion_api():
     try:
@@ -124,7 +117,6 @@ async def check_notion_api():
     except Exception as e:
         logger.error(f"Erro ao conectar à API do Notion: {e}")
         return False
-
 
 async def fetch_notion_data(database_id):
     all_results = []
@@ -142,7 +134,6 @@ async def fetch_notion_data(database_id):
         logger.error(f"Erro ao buscar dados do Notion: {e}")
         raise
 
-
 async def get_notion_page(page_id, cache):
     if page_id in cache:
         logger.debug(f"Cache hit para página {page_id}")
@@ -156,7 +147,6 @@ async def get_notion_page(page_id, cache):
         logger.warning(f"Falha ao buscar página {page_id}: {e}")
         return {}
 
-
 # Funções de extração de dados do Notion
 def extract_title(props, prop_name):
     try:
@@ -167,10 +157,8 @@ def extract_title(props, prop_name):
         logger.debug(f"Erro ao extrair título de '{prop_name}'")
         return ""
 
-
 def extract_select(props, prop_name):
     return props.get(prop_name, {}).get("select", {}).get("name", "") or ""
-
 
 async def extract_relation_titles(props, prop_name, cache):
     relations = props.get(prop_name, {}).get("relation", [])
@@ -194,33 +182,30 @@ async def extract_relation_titles(props, prop_name, cache):
                 logger.debug(f"Erro ao processar relação {rel_id}: {e}")
     return ", ".join(titles) or "Nenhuma relação encontrada"
 
-
 def extract_date(props, prop_name):
     if props is None:
         logger.debug(f"Propriedades ausentes ao tentar extrair '{prop_name}'")
         return ""
     return props.get(prop_name, {}).get("date", {}).get("start", "")
 
-
 def extract_rich_text(props, prop_name):
     rich_text = props.get(prop_name, {}).get("rich_text", [])
     return rich_text[0].get("text", {}).get("content", "") if rich_text else ""
 
-
 # Funções de processamento de dados
-today = datetime.today().replace(hour=0, minute=0, second=0, microsecond=0)
-
+today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
 
 def calculate_days_remaining(entrega_date):
     if not entrega_date:
         return None
     try:
         entrega_dt = datetime.fromisoformat(entrega_date)
+        if entrega_dt.tzinfo is None:
+            entrega_dt = entrega_dt.replace(tzinfo=timezone.utc)
         return (entrega_dt - today).days
     except ValueError as e:
         logger.error(f"Erro ao calcular dias restantes para '{entrega_date}': {e}")
         return None
-
 
 async def process_result(result, page_cache, materia_cache):
     props = result.get("properties")
@@ -252,11 +237,9 @@ async def process_result(result, page_cache, materia_cache):
         "Tópicos": await extract_relation_titles(props, "Tópicos", page_cache),
     }
 
-
 async def process_batch(batch, page_cache, materia_cache):
     tasks = [process_result(result, page_cache, materia_cache) for result in batch]
     return await asyncio.gather(*tasks)
-
 
 # Funções de formatação de mensagem
 def formatar_data(data_str):
@@ -278,7 +261,6 @@ def formatar_data(data_str):
     dia = data.day
     mes = meses[data.month]
     return f"{dia} de {mes}"
-
 
 def escapar_markdown_v2(texto):
     caracteres_reservados = [
@@ -304,7 +286,6 @@ def escapar_markdown_v2(texto):
     for char in caracteres_reservados:
         texto = texto.replace(char, f"\\{char}")
     return texto
-
 
 def gerar_mensagem_tarefa(tarefa):
     dias_restantes = tarefa.get("Dias Restantes")
@@ -337,16 +318,14 @@ def gerar_mensagem_tarefa(tarefa):
     mensagem = (
         f"*{tipo} \\- {materia}*\n"
         f"Dias Restantes: *{dias_texto}*\n"
-        f"Entrega: `{data_formatada}`\n\n"  # Quebra de linha após Entrega
-        f"Tópicos:\n{topicos_formatados}\n\n"  # Quebra de linha após Tópicos
-        f"Descrição:\n_{descricao}_"  # Quebra de linha entre "Descrição:" e o conteúdo
+        f"Entrega: `{data_formatada}`\n\n"
+        f"Tópicos:\n{topicos_formatados}\n\n"
+        f"Descrição:\n_{descricao}_"
     )
     return mensagem
 
-
 def print_whatsapp_markdown(mensagem):
     return re.sub(r"\\(.)", r"\1", mensagem)
-
 
 # Funções de interação com Telegram
 def delete_previous_message(chat_id, message_id):
@@ -364,7 +343,6 @@ def delete_previous_message(chat_id, message_id):
             )
     except requests.RequestException as e:
         logger.error(f"Erro de conexão ao tentar apagar mensagem: {e}")
-
 
 def enviar_mensagem_telegram(mensagem, t_chat_id=TELEGRAM_CHAT_ID, parse_mode=None):
     import requests
@@ -388,8 +366,6 @@ def enviar_mensagem_telegram(mensagem, t_chat_id=TELEGRAM_CHAT_ID, parse_mode=No
         logger.error(f"chat id {t_chat_id} - Erro de conexão com o Telegram: {e}")
         return None
 
-
-# Função principal ajustada para remover Polars
 async def main():
     logger.info("Iniciando programa e checando API do Notion...")
     if not all([NOTION_API_KEY, NOTION_DATABASE_ID]):
@@ -402,14 +378,12 @@ async def main():
         raise SystemExit("Erro na API do Notion")
     logger.info("Variáveis de ambiente carregadas e API validada com sucesso!")
 
-    # Carregar caches
     page_cache = check_and_update_cache(PAGE_CACHE_FILE, "page_cache", max_age_days=3)
     materia_cache = check_and_update_cache(
         MATERIA_CACHE_FILE, "materia_cache", max_age_days=3
     )
     last_message_info = load_cache(LAST_MESSAGE_FILE, "last_message")
 
-    # Obter e processar dados
     logger.info("Iniciando requisição ao Notion...")
     results = await fetch_notion_data(NOTION_DATABASE_ID)
     logger.info("Dados obtidos com sucesso! Processando...")
@@ -424,12 +398,10 @@ async def main():
 
     logger.info("Processamento concluído! Filtrando e ordenando dados...")
 
-    # Filtrar e ordenar sem Polars
     filtered_rows = []
     for row in all_rows:
         dias_restantes = row["Dias Restantes"]
         status = row["Status"]
-        # Filtro: exclui "Concluído" e mantém apenas tarefas de 0 a 7 dias restantes
         if (
             status != "Concluído"
             and dias_restantes is not None
@@ -437,16 +409,13 @@ async def main():
         ):
             filtered_rows.append(row)
 
-    # Ordenar por "Dias Restantes" (nulls_last=True)
     filtered_rows.sort(key=lambda x: (x["Dias Restantes"] is None, x["Dias Restantes"]))
 
-    # Salvar caches e limpar logs
     clean_old_logs(max_age_days=7)
     save_cache(page_cache, PAGE_CACHE_FILE, "page_cache")
     save_cache(materia_cache, MATERIA_CACHE_FILE, "materia_cache")
 
-    # Gerar e enviar mensagens
-    tarefas = filtered_rows  # Já é uma lista de dicionários
+    tarefas = filtered_rows
     if not all([TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TELEGRAM_CHAT_ID_WPP]):
         raise ValueError(
             "Variáveis 'TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID' e 'TELEGRAM_CHAT_ID_WPP' não definidas!"
@@ -458,7 +427,7 @@ async def main():
     if mensagens_validas:
         separador = "\n\n*\\-\\-\\-\\-\\-\\-*\n\n"
         mensagem_conjunta = separador.join(mensagens_validas)
-        current_date = datetime.now().strftime("%Y-%m-%d")
+        current_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         if (
             last_message_info.get("date") == current_date
             and "message_id" in last_message_info
@@ -482,7 +451,6 @@ async def main():
         logger.info(
             "Nenhuma tarefa com Dias Restantes entre 0 e 7 e Status diferente de 'Concluído' encontrada."
         )
-
 
 if __name__ == "__main__":
     asyncio.run(main())
