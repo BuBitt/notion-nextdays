@@ -66,7 +66,7 @@ notion = AsyncClient(auth=NOTION_API_KEY)
 # Funções utilitárias de cache
 def check_and_update_cache(file_path, cache_name, max_age_days=1):
     if os.path.exists(file_path):
-        mod_time = datetime.fromtimestamp(os.path.getmtime(file_path))
+        mod_time = datetime.fromtimestamp(os.path.getmtime(file_path), tz=timezone.utc)
         if (datetime.now(timezone.utc) - mod_time).days > max_age_days:
             logger.info(
                 f"Cache {cache_name} desatualizado (>{max_age_days} dia). Limpando."
