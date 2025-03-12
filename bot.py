@@ -257,6 +257,8 @@ def formatar_data(data_str):
         11: "Novembro",
         12: "Dezembro",
     }
+    # Extrair apenas a parte da data antes do 'T'
+    data_str = data_str.split("T")[0]
     data = datetime.strptime(data_str, "%Y-%m-%d")
     dia = data.day
     mes = meses[data.month]
