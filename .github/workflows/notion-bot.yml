@@ -1,8 +1,6 @@
 name: Notion to Telegram Bot
 
 on:
-  schedule:
-    - cron: '10 10 * * *'  # Executa às 10h UTC (7h horário de Brasília)
   workflow_dispatch:       # Permite rodar manualmente
 
 jobs:
